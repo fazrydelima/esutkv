@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Models\Keputusan;
 use App\Models\Peserta;
 use App\Models\Rumah_Sukan;
@@ -21,7 +22,7 @@ class SukantaraController extends Controller
         ->orderBy('acara_id')
         ->get();
 
-        return view('sukantara.index', compact('keputusan'));
+        return view('esutkv.sukantara.index', compact('keputusan'));
     }
 
     // CREATE: Paparkan borang pengisian mata
@@ -30,7 +31,7 @@ class SukantaraController extends Controller
         $acara = Acara::all();
         $rumahSukan = Rumah_Sukan::all();
 
-        return view('sukantara.create', compact(
+        return view('esutkv.sukantara.create', compact(
             'acara',
             'rumahSukan'
         ));
@@ -123,7 +124,7 @@ class SukantaraController extends Controller
             ->where('jenis_keputusan', 'sukantara')
             ->get();
 
-        return view('sukantara.show', compact(
+        return view('esutkv.sukantara.update', compact(
             'acara',
             'keputusan'
         ));
@@ -141,7 +142,7 @@ class SukantaraController extends Controller
             ->get()
             ->keyBy('rumah_id');
 
-        return view('sukantara.edit', compact(
+        return view('esutkv.sukantara.update', compact(
             'acara',
             'rumahSukan',
             'keputusan'
