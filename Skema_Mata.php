@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Skema_Mata extends Model
 {
     use HasFactory;
-    protected $table = 'skema_mata';
+    protected $table = 'skema_matas';
 
     protected $primaryKey = 'skema_id';
 
