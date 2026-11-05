@@ -4,29 +4,32 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Str;
 
 class Acara extends Model
 {
     use HasFactory;
-    protected $table = 'acara';
 
-    protected $primaryKey = 'acara_id';
-
-     public $timestamps = false;
+    protected $table = 'acaras';
+    protected $primaryKey = 'id';
 
     protected $fillable = [
-        'keputusan_id',
         'nama_acara',
         'kategori',
-        'tarikh',
     ];
 
-     public function keputusan()
+    public function setNamaAcaraAttribute(string $value): void
     {
-        return $this->hasMany(
-            Keputusan::class,
-            'keputusan_id',
-            'keputusan_id'
-        );
+        $this->attributes['nama_acara'] = Str::upper($value);
+    }
+
+    public function setKategoriAttribute(string $value): void
+    {
+        $this->attributes['kategori'] = Str::upper($value);
+    }
+
+    public function keputusans()
+    {
+        return $this->hasMany(Keputusan::class, 'acara_id', 'id');
     }
 }
