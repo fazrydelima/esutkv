@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Paparan extends Model
 {
     use HasFactory;
-    protected $table = 'paparan_awam';
+    protected $table = 'paparan_awams';
 
     protected $primaryKey = 'paparan_id';
 
