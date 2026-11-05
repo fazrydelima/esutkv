@@ -2,281 +2,175 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
-use App\Models\Keputusan;
+use App\Models\Acara;
+use App\Models\KeputusanAcara;
 use App\Models\Peserta;
 use App\Models\Rumah_Sukan;
-use App\Models\Acara;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class KejohananController extends Controller
 {
-    // 1. Papar senarai acara dan keputusan kejohanan
-    public function index()
+    public function show()
     {
-        $acara = Acara::with([
-            'keputusan' => function ($query) {
-                $query->where('jenis_keputusan', 'kejohanan')
-                      ->with(['peserta', 'rumah_sukan']);
-            }
-        ])->get();
-
-        return view('kejohanan.index', compact('acara'));
+        return $this->formAndResults();
     }
 
-
-    // 2. Papar borang tambah keputusan
     public function create()
     {
-        $acara = Acara::all();
-        $rumah = Rumah_Sukan::all();
-
-        return view('kejohanan.create', compact(
-            'acara',
-            'rumah'
-        ));
+        return $this->formAndResults();
     }
 
+    private function formAndResults()
+    {
+        $acara = Acara::orderBy('nama_acara')->get();
+        $peserta = Peserta::orderBy('nama_peserta')->get();
+        $kejohanan = KeputusanAcara::with(['acara', 'peserta'])
+            ->where('status', 'approved')
+            ->latest()
+            ->get();
 
-    // 3. Simpan keputusan kejohanan
+        return view('esutkv.kejohanan.index', compact('kejohanan', 'acara', 'peserta'));
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
-            'acara_id' => 'required|exists:acara,acara_id',
-
-            'peserta.1.nama' => 'required|string|max:255',
-            'peserta.1.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
-
-            'peserta.2.nama' => 'required|string|max:255',
-            'peserta.2.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
-
-            'peserta.3.nama' => 'required|string|max:255',
-            'peserta.3.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
+            'acara_id' => 'required|exists:acaras,id',
+            'peserta_id.1' => 'required|exists:pesertas,id|different:peserta_id.2|different:peserta_id.3',
+            'peserta_id.2' => 'required|exists:pesertas,id|different:peserta_id.3',
+            'peserta_id.3' => 'required|exists:pesertas,id',
         ]);
 
         $acaraId = $data['acara_id'];
+        $pingatMengikutKedudukan = [
+            1 => ['pingat' => 'Emas', 'mata' => 10],
+            2 => ['pingat' => 'Perak', 'mata' => 8],
+            3 => ['pingat' => 'Gangsa', 'mata' => 6],
+        ];
 
-        // Ambil skema mata berdasarkan acara
-        $skemaMata = Skema_Mata::where('acara_id', $acaraId)
-            ->pluck('mata', 'kedudukan');
+        foreach ($pingatMengikutKedudukan as $keputusan) {
+            $sudahAda = KeputusanAcara::where('acara_id', $acaraId)
+                ->where('pingat', $keputusan['pingat'])
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists();
 
-        // Pastikan skema mata bagi ketiga-tiga kedudukan wujud
-        foreach ([1, 2, 3] as $kedudukan) {
-            if (!$skemaMata->has($kedudukan)) {
+            if ($sudahAda) {
                 return back()
-                    ->withInput()
-                    ->withErrors([
-                        'acara_id' => "Skema mata bagi kedudukan {$kedudukan} belum ditetapkan."
-                    ]);
+                    ->withErrors(['acara_id' => 'Keputusan untuk acara ini sudah dihantar atau direkodkan. Sila semak keputusan terlebih dahulu.'])
+                    ->withInput();
             }
         }
 
-        DB::transaction(function () use (
-            $data,
-            $acaraId,
-            $skemaMata
-        ) {
-            foreach ([1, 2, 3] as $kedudukan) {
-
-                // Simpan maklumat peserta
-                $peserta = Peserta::create([
-                    'acara_id' => $acaraId,
-                    'nama' => $data['peserta'][$kedudukan]['nama'],
-                    'rumah_id' => $data['peserta'][$kedudukan]['rumah_id'],
-                ]);
-
-                // Ambil mata secara automatik
-                $mata = $skemaMata[$kedudukan];
-
-                // Simpan keputusan
-                Keputusan::create([
-                    'acara_id' => $acaraId,
-                    'peserta_id' => $peserta->peserta_id,
-                    'rumah_id' => $peserta->rumah_id,
-                    'kedudukan' => $kedudukan,
-                    'mata' => $mata,
-                    'jenis_keputusan' => 'kejohanan',
+        DB::transaction(function () use ($data, $pingatMengikutKedudukan, $request) {
+            foreach ($pingatMengikutKedudukan as $kedudukan => $keputusan) {
+                $peserta = Peserta::findOrFail($data['peserta_id'][$kedudukan]);
+                KeputusanAcara::create([
+                    'acara_id' => $data['acara_id'],
+                    'peserta_id' => $peserta->id,
+                    'rumah_sukan_id' => $peserta->rumah_sukan_id,
+                    'pingat' => $keputusan['pingat'],
+                    'mata' => $keputusan['mata'],
+                    'status' => 'approved',
+                    'submitted_by' => $request->user()->id,
+                    'reviewed_by' => $request->user()->id,
+                    'reviewed_at' => now(),
                 ]);
             }
         });
 
         return redirect()
             ->route('kejohanan.index')
-            ->with('success', 'Keputusan kejohanan berjaya disimpan.');
+            ->with('success', 'Keputusan kejohanan berjaya disimpan dan dipaparkan pada scoreboard.');
     }
 
-
-    // 4. Papar keputusan bagi sesuatu acara
-    public function show($acaraId)
+    public function showupdate()
     {
-        $acara = Acara::findOrFail($acaraId);
-
-        $keputusan = Keputusan::with([
-            'peserta',
-            'rumah_sukan'
-        ])
-        ->where('acara_id', $acaraId)
-        ->where('jenis_keputusan', 'kejohanan')
-        ->orderBy('kedudukan')
-        ->get();
-
-        // Jumlah mata setiap rumah sukan bagi acara ini
-        $jumlahMata = Keputusan::where('acara_id', $acaraId)
-            ->where('jenis_keputusan', 'kejohanan')
-            ->select(
-                'rumah_id',
-                DB::raw('SUM(mata) as jumlah_mata')
-            )
-            ->groupBy('rumah_id')
-            ->with('rumah_sukan')
-            ->get();
-
-        return view('kejohanan.show', compact(
-            'acara',
-            'keputusan',
-            'jumlahMata'
-        ));
+        return $this->formAndResults();
     }
 
-
-    // 5. Papar borang kemaskini keputusan
-    public function edit($acaraId)
+    public function edit(int $id)
     {
-        $acara = Acara::findOrFail($acaraId);
+        $kejohanan = KeputusanAcara::where('status', 'approved')->findOrFail($id);
+        $acara = Acara::orderBy('nama_acara')->get();
+        $peserta = Peserta::orderBy('nama_peserta')->get();
 
-        $rumah = Rumah_Sukan::all();
-
-        $keputusan = Keputusan::with('peserta')
-            ->where('acara_id', $acaraId)
-            ->where('jenis_keputusan', 'kejohanan')
-            ->get()
-            ->keyBy('kedudukan');
-
-        return view('kejohanan.edit', compact(
-            'acara',
-            'rumah',
-            'keputusan'
-        ));
+        return view('esutkv.kejohanan.update', compact('kejohanan', 'acara', 'peserta'));
     }
 
-
-    // 6. Kemaskini keputusan kejohanan
-    public function update(Request $request, $acaraId)
+    public function update(Request $request, int $id)
     {
         $data = $request->validate([
-            'peserta.1.nama' => 'required|string|max:255',
-            'peserta.1.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
-
-            'peserta.2.nama' => 'required|string|max:255',
-            'peserta.2.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
-
-            'peserta.3.nama' => 'required|string|max:255',
-            'peserta.3.rumah_id' => 'required|exists:rumah_sukan,rumah_id',
+            'acara_id' => 'required|exists:acaras,id',
+            'peserta_id' => 'required|exists:pesertas,id',
+            'kedudukan' => 'required|integer|in:1,2,3',
+            'mata' => 'required|integer|min:0',
         ]);
 
-        $acara = Acara::findOrFail($acaraId);
+        $kejohanan = KeputusanAcara::where('status', 'approved')->findOrFail($id);
+        $pingatMengikutKedudukan = [1 => 'Emas', 2 => 'Perak', 3 => 'Gangsa'];
+        $pingat = $pingatMengikutKedudukan[$data['kedudukan']];
+        $pertindihan = KeputusanAcara::where('acara_id', $data['acara_id'])
+            ->where('pingat', $pingat)
+            ->where('status', 'approved')
+            ->where('id', '!=', $kejohanan->id)
+            ->exists();
 
-        // Ambil semula skema mata terkini
-        $skemaMata = Skema_Mata::where('acara_id', $acaraId)
-            ->pluck('mata', 'kedudukan');
-
-        foreach ([1, 2, 3] as $kedudukan) {
-            if (!$skemaMata->has($kedudukan)) {
-                return back()
-                    ->withInput()
-                    ->withErrors([
-                        'skema' => "Skema mata bagi kedudukan {$kedudukan} belum ditetapkan."
-                    ]);
-            }
+        if ($pertindihan) {
+            return back()
+                ->withErrors(['kedudukan' => 'Pingat tersebut sudah direkodkan untuk acara ini.'])
+                ->withInput();
         }
 
-        DB::transaction(function () use (
-            $data,
-            $acaraId,
-            $skemaMata
-        ) {
-            // Ambil keputusan lama untuk acara ini sahaja
-            $keputusanLama = Keputusan::where('acara_id', $acaraId)
-                ->where('jenis_keputusan', 'kejohanan')
-                ->get();
-
-            $pesertaIds = $keputusanLama
-                ->pluck('peserta_id')
-                ->filter()
-                ->unique();
-
-            // Padam keputusan lama
-            Keputusan::where('acara_id', $acaraId)
-                ->where('jenis_keputusan', 'kejohanan')
-                ->delete();
-
-            // Padam peserta lama yang tidak lagi digunakan
-            Peserta::whereIn('peserta_id', $pesertaIds)
-                ->whereNotIn(
-                    'peserta_id',
-                    Keputusan::whereNotNull('peserta_id')
-                        ->select('peserta_id')
-                )
-                ->delete();
-
-            // Simpan semula tiga keputusan
-            foreach ([1, 2, 3] as $kedudukan) {
-
-                $peserta = Peserta::create([
-                    'acara_id' => $acaraId,
-                    'nama' => $data['peserta'][$kedudukan]['nama'],
-                    'rumah_id' => $data['peserta'][$kedudukan]['rumah_id'],
-                ]);
-
-                Keputusan::create([
-                    'acara_id' => $acaraId,
-                    'peserta_id' => $peserta->peserta_id,
-                    'rumah_id' => $peserta->rumah_id,
-                    'kedudukan' => $kedudukan,
-                    'mata' => $skemaMata[$kedudukan],
-                    'jenis_keputusan' => 'kejohanan',
-                ]);
-            }
-        });
+        $peserta = Peserta::findOrFail($data['peserta_id']);
+        $kejohanan->update([
+            'acara_id' => $data['acara_id'],
+            'peserta_id' => $peserta->id,
+            'rumah_sukan_id' => $peserta->rumah_sukan_id,
+            'pingat' => $pingat,
+            'mata' => $data['mata'],
+        ]);
 
         return redirect()
             ->route('kejohanan.index')
-            ->with('success', 'Keputusan kejohanan berjaya dikemaskini.');
+            ->with('success', 'Rekod berjaya dikemaskini.');
     }
 
-
-    // 7. Padam keputusan kejohanan
-    public function destroy($acaraId)
+    public function delete(int $id)
     {
-        DB::transaction(function () use ($acaraId) {
-
-            $keputusan = Keputusan::where('acara_id', $acaraId)
-                ->where('jenis_keputusan', 'kejohanan')
-                ->get();
-
-            $pesertaIds = $keputusan
-                ->pluck('peserta_id')
-                ->filter()
-                ->unique();
-
-            // Padam keputusan kejohanan sahaja
-            Keputusan::where('acara_id', $acaraId)
-                ->where('jenis_keputusan', 'kejohanan')
-                ->delete();
-
-            // Padam peserta yang tidak lagi digunakan
-            Peserta::whereIn('peserta_id', $pesertaIds)
-                ->whereNotIn(
-                    'peserta_id',
-                    Keputusan::whereNotNull('peserta_id')
-                        ->select('peserta_id')
-                )
-                ->delete();
-        });
+        KeputusanAcara::where('status', 'approved')->findOrFail($id)->delete();
 
         return redirect()
             ->route('kejohanan.index')
-            ->with('success', 'Keputusan kejohanan berjaya dipadam.');
+            ->with('success', 'Rekod berjaya dipadam.');
     }
 
+    public function jumlahMata()
+    {
+        return redirect()->route('dashboard');
+    }
+
+    public function dashboard()
+    {
+        $totalPeserta = Peserta::count();
+        $totalAcara = Acara::count();
+        $totalRumahSukan = Rumah_Sukan::count();
+        $keputusans = KeputusanAcara::with(['acara', 'peserta.rumahSukan'])
+            ->where('status', 'approved')
+            ->latest()
+            ->take(10)
+            ->get();
+        $rumahSukans = Rumah_Sukan::withSum(
+            ['keputusanAcara as jumlah_mata' => fn ($query) => $query->where('status', 'approved')],
+            'mata'
+        )->orderByDesc('jumlah_mata')->get();
+
+        return view('esutkv.dashboard', compact(
+            'totalPeserta',
+            'totalAcara',
+            'totalRumahSukan',
+            'keputusans',
+            'rumahSukans'
+        ));
+    }
 }
