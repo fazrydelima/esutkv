@@ -19,6 +19,8 @@ class KeputusanAcara extends Model
         'submitted_by',
         'reviewed_by',
         'reviewed_at',
+        'jenis_keputusan',
+        'kedudukan',
     ];
 
     protected function casts(): array
