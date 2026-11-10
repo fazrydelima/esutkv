@@ -152,6 +152,8 @@
             }
         }
 
+        refreshScoreboard();
+
         window.setInterval(refreshScoreboard, 10000);
     </script>
 </body>
