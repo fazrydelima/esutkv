@@ -32,8 +32,41 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/peserta', [PesertaController::class, 'store'])->name('peserta.store');
     Route::delete('/peserta/{id}', [PesertaController::class, 'destroy'])->name('peserta.destroy');
 
-    // Merentas Desa route
-    Route::get('/merentas-desa', [MerentasDesaController::class, 'index'])->name('merentasdesa.index');
+
+// Merentas Desa routes
+Route::prefix('rentas-desa')->name('merentas_desa.')->group(function () {
+
+    // Paparan senarai keputusan
+    Route::get('/', [MerentasDesaController::class, 'index'])
+        ->name('index');
+
+    // Borang tambah keputusan
+    Route::get('/create', [MerentasDesaController::class, 'create'])
+        ->name('create');
+
+    // Simpan keputusan
+    Route::post('/', [MerentasDesaController::class, 'store'])
+        ->name('store');
+
+    // Paparan keputusan keseluruhan
+    Route::get('/show', [MerentasDesaController::class, 'show'])
+        ->name('show');
+
+    // Borang kemas kini atlet
+    Route::get('/edit/{id}', [MerentasDesaController::class, 'edit'])
+        ->name('edit');
+
+    // Simpan perubahan
+    Route::put('/update/{id}', [MerentasDesaController::class, 'update'])
+        ->name('update');
+
+    // Padam keputusan
+    Route::delete('/delete/{id}', [MerentasDesaController::class, 'destroy'])
+        ->name('destroy');
+
+});
+
+
     Route::redirect('/acara', '/admin/merentas-desa');
 
     // Keputusan routes (sedia ada)
