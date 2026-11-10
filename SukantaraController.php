@@ -4,38 +4,42 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\Keputusan;
-use App\Models\Peserta;
+use App\Models\KeputusanAcara;
 use App\Models\Rumah_Sukan;
 use App\Models\Acara;
 
 class SukantaraController extends Controller
 {
-    // READ: Paparkan senarai keputusan Sukantara
+   // READ: Paparkan senarai keputusan Sukantara
     public function index()
     {
-        $keputusan = Keputusan::with([
+        $keputusan = KeputusanAcara::with([
             'acara',
-            'rumah_sukan'
+            'rumahSukan'
         ])
-        ->where('jenis_keputusan', 'sukantara')
-        ->orderBy('acara_id')
+        ->whereNull('peserta_id')
+        ->whereNull('pingat')
+        ->whereNull('jenis_keputusan')
+        ->orderByDesc('id')
         ->get();
 
         return view('esutkv.sukantara.index', compact('keputusan'));
     }
 
+
     // CREATE: Paparkan borang pengisian mata
     public function create()
     {
-        $acara = Acara::all();
-        $rumahSukan = Rumah_Sukan::all();
+        $acara = Acara::orderBy('nama_acara')->get();
+
+        $rumahSukan = Rumah_Sukan::orderBy('id')->get();
 
         return view('esutkv.sukantara.create', compact(
             'acara',
             'rumahSukan'
         ));
     }
+
 
     // CREATE: Simpan mata bagi 4 rumah sukan
     public function store(Request $request)
@@ -44,33 +48,34 @@ class SukantaraController extends Controller
             'acara_id' => [
                 'required',
                 'integer',
-                'exists:acara,acara_id'
+                'exists:acaras,id'
             ],
 
             'mata' => [
                 'required',
                 'array',
+                'size:4'
             ],
 
             'mata.*' => [
                 'required',
                 'integer',
-                'min:0',
+                'min:0'
             ],
         ]);
 
-        $rumahSukan = Rumah_Sukan::all();
+        $rumahSukan = Rumah_Sukan::orderBy('id')->get();
 
-        // Pastikan terdapat 4 rumah sukan
+        // Pastikan terdapat tepat 4 rumah sukan
         if ($rumahSukan->count() != 4) {
             return back()->withInput()->withErrors([
                 'mata' => 'Sistem perlu mempunyai tepat 4 rumah sukan.'
             ]);
         }
 
-        // Pastikan admin mengisi mata untuk semua rumah sukan
+        // Pastikan input mengandungi ID keempat-empat rumah sukan
         $idRumah = $rumahSukan
-            ->pluck('rumah_id')
+            ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->sort()
             ->values()
@@ -88,23 +93,34 @@ class SukantaraController extends Controller
             ]);
         }
 
+        // Semak keputusan acara sedia ada
+        $sudahWujud = KeputusanAcara::where('acara_id', $data['acara_id'])
+            ->whereNull('peserta_id')
+            ->whereNull('pingat')
+            ->whereNull('jenis_keputusan')
+            ->exists();
+
+        if ($sudahWujud) {
+            return back()->withInput()->withErrors([
+                'acara_id' => 'Keputusan bagi acara ini sudah wujud. Sila gunakan fungsi kemas kini.'
+            ]);
+        }
+
+        // Simpan empat rekod dalam satu transaksi
         DB::transaction(function () use ($data) {
 
-            // Padam rekod Sukantara terdahulu bagi acara ini sahaja
-            Keputusan::where('acara_id', $data['acara_id'])
-                ->where('jenis_keputusan', 'sukantara')
-                ->delete();
-
-            // Simpan mata setiap rumah sukan
             foreach ($data['mata'] as $rumahId => $mata) {
 
-                Keputusan::create([
+                KeputusanAcara::create([
                     'acara_id' => $data['acara_id'],
-                    'rumah_id' => $rumahId,
                     'peserta_id' => null,
-                    'kedudukan' => null,
+                    'rumah_sukan_id' => $rumahId,
+                    'pingat' => null,
                     'mata' => $mata,
-                    'jenis_keputusan' => 'sukantara',
+                    'status',
+                    'submitted_by' => null,
+                    'reviewed_by' => null,
+                    'reviewed_at' => null,
                 ]);
             }
         });
@@ -114,33 +130,26 @@ class SukantaraController extends Controller
             ->with('success', 'Mata Sukantara berjaya disimpan.');
     }
 
-    // READ: Paparkan keputusan bagi satu acara
-    public function show($acaraId)
-    {
-        $acara = Acara::findOrFail($acaraId);
-
-        $keputusan = Keputusan::with('rumah_sukan')
-            ->where('acara_id', $acaraId)
-            ->where('jenis_keputusan', 'sukantara')
-            ->get();
-
-        return view('esutkv.sukantara.update', compact(
-            'acara',
-            'keputusan'
-        ));
-    }
 
     // UPDATE: Paparkan borang kemas kini mata
     public function edit($acaraId)
     {
         $acara = Acara::findOrFail($acaraId);
 
-        $rumahSukan = Rumah_Sukan::all();
+        $rumahSukan = Rumah_Sukan::orderBy('id')->get();
 
-        $keputusan = Keputusan::where('acara_id', $acaraId)
-            ->where('jenis_keputusan', 'sukantara')
+        $keputusan = KeputusanAcara::where('acara_id', $acaraId)
+            ->whereNull('peserta_id')
+            ->whereNull('pingat')
+            ->whereNull('jenis_keputusan')
             ->get()
-            ->keyBy('rumah_id');
+            ->keyBy('rumah_sukan_id');
+
+        if ($keputusan->isEmpty()) {
+            return redirect()
+                ->route('sukantara.index')
+                ->with('error', 'Keputusan Sukantara tidak dijumpai.');
+        }
 
         return view('esutkv.sukantara.update', compact(
             'acara',
@@ -149,32 +158,38 @@ class SukantaraController extends Controller
         ));
     }
 
+
     // UPDATE: Simpan perubahan mata
     public function update(Request $request, $acaraId)
     {
-        $request->merge([
-            'acara_id' => $acaraId
+        $acara = Acara::findOrFail($acaraId);
+
+        $data = $request->validate([
+            'mata' => [
+                'required',
+                'array',
+                'size:4'
+            ],
+
+            'mata.*' => [
+                'required',
+                'integer',
+                'min:0'
+            ],
         ]);
 
-        // Gunakan validasi yang sama seperti store()
-        $request->validate([
-            'acara_id' => 'required|exists:acara,acara_id',
-            'mata' => 'required|array',
-            'mata.*' => 'required|integer|min:0',
-        ]);
+        $rumahSukan = Rumah_Sukan::orderBy('id')->get();
 
-        $data = $request->all();
-
-        $rumahSukan = Rumah_Sukan::all();
-
+        // Pastikan terdapat tepat 4 rumah sukan
         if ($rumahSukan->count() != 4) {
             return back()->withInput()->withErrors([
                 'mata' => 'Sistem perlu mempunyai tepat 4 rumah sukan.'
             ]);
         }
 
+        // Semak ID rumah sukan
         $idRumah = $rumahSukan
-            ->pluck('rumah_id')
+            ->pluck('id')
             ->map(fn ($id) => (string) $id)
             ->sort()
             ->values()
@@ -192,23 +207,41 @@ class SukantaraController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($data, $acaraId) {
+        // Pastikan rekod Sukantara wujud
+        $sudahWujud = KeputusanAcara::where('acara_id', $acaraId)
+            ->whereNull('peserta_id')
+            ->whereNull('pingat')
+            ->whereNull('jenis_keputusan')
+            ->exists();
 
-            // Gantikan semua mata lama dengan mata baharu
-            Keputusan::where('acara_id', $acaraId)
-                ->where('jenis_keputusan', 'sukantara')
-                ->delete();
+        if (!$sudahWujud) {
+            return redirect()
+                ->route('sukantara.index')
+                ->with('error', 'Keputusan Sukantara tidak dijumpai.');
+        }
+
+        // Kemas kini rekod mengikut rumah sukan
+        DB::transaction(function () use ($data, $acaraId) {
 
             foreach ($data['mata'] as $rumahId => $mata) {
 
-                Keputusan::create([
-                    'acara_id' => $acaraId,
-                    'rumah_id' => $rumahId,
-                    'peserta_id' => null,
-                    'kedudukan' => null,
-                    'mata' => $mata,
-                    'jenis_keputusan' => 'sukantara',
-                ]);
+                KeputusanAcara::updateOrCreate(
+
+                    [
+                        'acara_id' => $acaraId,
+                        'rumah_sukan_id' => $rumahId,
+                        'peserta_id' => null,
+                        'pingat' => null,
+                    ],
+
+                    [
+                        'mata' => $mata,
+                        'status',
+                        'submitted_by' => null,
+                        'reviewed_by' => null,
+                        'reviewed_at' => null,
+                    ]
+                );
             }
         });
 
@@ -217,12 +250,23 @@ class SukantaraController extends Controller
             ->with('success', 'Mata Sukantara berjaya dikemaskini.');
     }
 
+
     // DELETE: Padam semua keputusan Sukantara bagi satu acara
     public function destroy($acaraId)
     {
-        Keputusan::where('acara_id', $acaraId)
-            ->where('jenis_keputusan', 'sukantara')
+        Acara::findOrFail($acaraId);
+
+        $jumlahPadam = KeputusanAcara::where('acara_id', $acaraId)
+            ->whereNull('peserta_id')
+            ->whereNull('pingat')
+            ->whereNull('jenis_keputusan')
             ->delete();
+
+        if ($jumlahPadam == 0) {
+            return redirect()
+                ->route('sukantara.index')
+                ->with('error', 'Keputusan Sukantara tidak dijumpai.');
+        }
 
         return redirect()
             ->route('sukantara.index')
