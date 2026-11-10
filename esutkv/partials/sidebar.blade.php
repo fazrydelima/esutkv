@@ -30,8 +30,8 @@
             <span class="sidebar-icon">＋</span> Daftar Peserta
         </a>
 
-        <span class="sidebar-label">MERENTAS DESA</span>
-        <a class="sidebar-link {{ request()->routeIs('merentasdesa.*') ? 'active' : '' }}" href="{{ route('merentasdesa.index') }}">
+        <span class="sidebar-label">KATEGORI ACARA</span>
+        <a class="sidebar-link {{ request()->routeIs('merentas_desa.*') ? 'active' : '' }}" href="{{ route('merentas_desa.index') }}">
             <span class="sidebar-icon">◷</span> Merentas Desa
         </a>
         <a class="sidebar-link {{ request()->routeIs('sukantara.*') ? 'active' : '' }}" href="{{ route('sukantara.index') }}">
