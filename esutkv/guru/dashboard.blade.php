@@ -1,125 +1,174 @@
-<!DOCTYPE html>
-<html lang="ms">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guru {{ $user->rumahSukan->nama_rumah ?? '' }} - eSUTKV</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/style.css') }}">
-</head>
-<body>
-    <div class="app-shell">
-        @include('esutkv.partials.sidebar')
-        <main class="app-main">
-            @include('esutkv.partials.topbar', [
-                'title' => 'Panel Guru ' . ($user->rumahSukan->nama_rumah ?? ''),
-                'subtitle' => 'Hantar keputusan peserta rumah sukan anda'
-            ])
-            <div class="page-content">
-                <div class="page-intro">
-                    <h2>Hantar keputusan</h2>
-                    <p>Keputusan akan menunggu pengesahan admin sebelum dipaparkan pada live scoreboard.</p>
+
+@extends('layouts.app_guru')
+
+@section('content')
+    @include('esutkv.partials.topbar', [
+        'title' => 'Dashboard Guru',
+        'subtitle' => 'Ringkasan prestasi rumah sukan'
+    ])
+
+    <div class="page-content">
+
+        {{-- Pengenalan --}}
+        <div class="page-intro">
+            <h2>
+                Selamat datang, {{ $user->name ?? 'Guru' }}
+            </h2>
+            <p>
+                Pantau jumlah peserta, kutipan mata dan keputusan
+                terkini rumah sukan {{ $user->rumahSukan->nama_rumah ?? '' }}.
+            </p>
+        </div>
+
+        {{-- Kad Statistik --}}
+        <section class="stats-grid" aria-label="Ringkasan rumah sukan">
+
+            <article class="stat-card stat-blue">
+                <div class="stat-label">Jumlah Peserta</div>
+                <div class="stat-value">{{ $jumlahPeserta }}</div>
+                <small>Ahli rumah sukan</small>
+            </article>
+
+            <article class="stat-card stat-green">
+                <div class="stat-label">Jumlah Mata</div>
+                <div class="stat-value">{{ $jumlahMata }}</div>
+                <small>Jumlah keseluruhan mata</small>
+            </article>
+
+            <article class="stat-card stat-gold">
+                <div class="stat-label">Rumah Sukan</div>
+                <div class="stat-value" style="font-size: 24px;">
+                    {{ $user->rumahSukan->nama_rumah ?? '-' }}
                 </div>
+                <small>Rumah sukan anda</small>
+            </article>
 
-                @if (session('success'))
-                    <div class="alert alert-success">{{ session('success') }}</div>
-                @endif
-                @if ($errors->any())
-                    <div class="alert alert-danger">
-                        <ul class="mb-0">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+        </section>
 
-                <section class="card mb-4">
-                    <div class="card-header">Keputusan untuk {{ $user->rumahSukan->nama_rumah ?? 'rumah sukan anda' }}</div>
-                    <div class="card-body">
-                        @if ($acara->isEmpty() || $peserta->isEmpty())
-                            <p class="mb-0">Acara atau peserta rumah sukan anda belum didaftarkan. Hubungi admin.</p>
-                        @else
-                            <form action="{{ route('guru.keputusan.store') }}" method="POST">
-                                @csrf
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label for="acara_id" class="form-label">Acara</label>
-                                        <select name="acara_id" id="acara_id" class="form-select" required>
-                                            <option value="">-- Pilih acara --</option>
-                                            @foreach ($acara as $item)
-                                                <option value="{{ $item->id }}" {{ old('acara_id') == $item->id ? 'selected' : '' }}>
-                                                    {{ $item->nama_acara }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label for="peserta_id" class="form-label">Peserta</label>
-                                        <select name="peserta_id" id="peserta_id" class="form-select" required>
-                                            <option value="">-- Pilih peserta rumah anda --</option>
-                                            @foreach ($peserta as $item)
-                                                <option value="{{ $item->id }}" {{ old('peserta_id') == $item->id ? 'selected' : '' }}>
-                                                    {{ $item->nama_peserta }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label for="pingat" class="form-label">Keputusan</label>
-                                        <select name="pingat" id="pingat" class="form-select" required>
-                                            <option value="">-- Pilih pingat --</option>
-                                            @foreach (['Emas' => 10, 'Perak' => 8, 'Gangsa' => 6] as $pingat => $mata)
-                                                <option value="{{ $pingat }}" {{ old('pingat') === $pingat ? 'selected' : '' }}>
-                                                    {{ $pingat }} ({{ $mata }} mata)
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <button type="submit" class="btn btn-primary mt-3">Hantar untuk Pengesahan</button>
-                            </form>
-                        @endif
-                    </div>
-                </section>
-
-                <section class="card">
-                    <div class="card-header">Keputusan yang dihantar</div>
-                    <div class="card-body">
-                        @if ($keputusans->isEmpty())
-                            <p class="mb-0">Belum ada keputusan dihantar.</p>
-                        @else
-                            <div class="table-responsive">
-                                <table class="table table-striped table-bordered mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Acara</th>
-                                            <th>Peserta</th>
-                                            <th>Pingat</th>
-                                            <th>Mata</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($keputusans as $item)
-                                            <tr>
-                                                <td>{{ $item->acara->nama_acara }}</td>
-                                                <td>{{ $item->peserta->nama_peserta }}</td>
-                                                <td>{{ $item->pingat }}</td>
-                                                <td>{{ $item->mata }}</td>
-                                                <td>
-                                                    {{ ['pending' => 'Menunggu pengesahan', 'approved' => 'Disahkan', 'rejected' => 'Ditolak'][$item->status] }}
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
-                    </div>
-                </section>
+        {{-- Maklumat Rumah Sukan --}}
+        <section class="surface-card">
+            <div class="surface-card-header">
+                <h2>Maklumat Rumah Sukan</h2>
+                <span class="topbar-eyebrow">Prestasi semasa</span>
             </div>
-        </main>
+
+            <div class="surface-card-body">
+                <div class="house-score-list">
+
+                    <article class="house-score-card"
+                        style="--house-color: {{ $user->rumahSukan->warna ?? '#6955e8' }}">
+
+                        <span class="house-score-name">
+                            {{ $user->rumahSukan->nama_rumah ?? 'Tiada rumah sukan' }}
+                        </span>
+
+                        <span class="house-score-value">
+                            {{ $jumlahMata }}
+                            <small>mata</small>
+                        </span>
+
+                    </article>
+
+                </div>
+            </div>
+        </section>
+
+        {{-- Keputusan Terkini --}}
+        <section class="surface-card" style="margin-top: 24px;">
+
+            <div class="surface-card-header">
+                <h2>Keputusan Terkini</h2>
+                <span class="topbar-eyebrow">10 rekod terakhir</span>
+            </div>
+
+            <div class="surface-card-body">
+
+                @if ($keputusans->isEmpty())
+
+                    <p class="muted-text">
+                        Belum ada keputusan direkodkan untuk rumah sukan anda.
+                    </p>
+
+                @else
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+
+                            <thead>
+                                <tr>
+                                    <th>Bil.</th>
+                                    <th>Modul</th>
+                                    <th>Acara</th>
+                                    <th>Peserta</th>
+                                    <th>Keputusan</th>
+                                    <th>Mata</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach ($keputusans as $index => $keputusan)
+
+                                    @php
+                                        if ($keputusan->jenis_keputusan === 'terawal') {
+                                            $modul = 'Merentas Desa';
+                                            $acara = 'Merentas Desa';
+                                            $peserta = $keputusan->peserta->nama_peserta ?? '-';
+                                            $keputusanLabel = 'Tempat ' . ($keputusan->kedudukan ?? '-');
+
+                                        } elseif ($keputusan->jenis_keputusan === 'masa_terhad') {
+                                            $modul = 'Merentas Desa';
+                                            $acara = 'Merentas Desa';
+                                            $peserta = 'Kiraan Peserta';
+                                            $keputusanLabel = 'Dalam had masa';
+
+                                        } elseif (
+                                            $keputusan->peserta_id === null &&
+                                            $keputusan->pingat === null &&
+                                            $keputusan->jenis_keputusan === null
+                                        ) {
+                                            $modul = 'Sukantara';
+                                            $acara = $keputusan->acara->nama_acara ?? '-';
+                                            $peserta = 'Semua ahli rumah sukan';
+                                            $keputusanLabel = '-';
+
+                                        } else {
+                                            $modul = 'Kejohanan';
+                                            $acara = $keputusan->acara->nama_acara ?? '-';
+                                            $peserta = $keputusan->peserta->nama_peserta ?? '-';
+                                            $keputusanLabel = $keputusan->pingat ?? '-';
+                                        }
+                                    @endphp
+
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                {{ $modul }}
+                                            </span>
+                                        </td>
+
+                                        <td>{{ $acara }}</td>
+
+                                        <td>{{ $peserta }}</td>
+
+                                        <td>{{ $keputusanLabel }}</td>
+
+                                        <td>
+                                            <strong>{{ $keputusan->mata }}</strong>
+                                        </td>
+                                    </tr>
+
+                                @endforeach
+                            </tbody>
+
+                        </table>
+                    </div>
+
+                @endif
+
+            </div>
+        </section>
+
     </div>
-</body>
-</html>
+@endsection
