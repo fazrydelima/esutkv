@@ -22,14 +22,6 @@
             <span class="sidebar-icon">⌂</span> Dashboard
         </a>
 
-        <span class="sidebar-label">PESERTA</span>
-        <a class="sidebar-link {{ request()->routeIs('peserta.senarai') ? 'active' : '' }}" href="{{ route('peserta.senarai') }}">
-            <span class="sidebar-icon">♙</span> Senarai Peserta
-        </a>
-        <a class="sidebar-link {{ request()->routeIs('peserta.index') ? 'active' : '' }}" href="{{ route('peserta.index') }}#form-tambah-peserta">
-            <span class="sidebar-icon">＋</span> Daftar Peserta
-        </a>
-
         <span class="sidebar-label">KATEGORI ACARA</span>
         <a class="sidebar-link {{ request()->routeIs('merentas_desa.*') ? 'active' : '' }}" href="{{ route('merentas_desa.index') }}">
             <span class="sidebar-icon">◷</span> Merentas Desa
@@ -41,16 +33,12 @@
             <span class="sidebar-icon">⚑</span> Kejohanan
         </a>
 
-        <span class="sidebar-label">KEPUTUSAN</span>
-        <a class="sidebar-link {{ request()->routeIs('keputusan.*') ? 'active' : '' }}" href="{{ route('keputusan.index') }}">
-            <span class="sidebar-icon">▤</span> Senarai & Pengisian
-        </a>
-        <a class="sidebar-link {{ request()->routeIs('admin.guru-keputusan.*') ? 'active' : '' }}" href="{{ route('admin.guru-keputusan.index') }}">
-            <span class="sidebar-icon">✓</span> Semakan Keputusan Guru
-        </a>
-        <a class="sidebar-link {{ request()->routeIs('admin.guru-accounts.*') ? 'active' : '' }}" href="{{ route('admin.guru-accounts.index') }}">
+        <span class="sidebar-label">PENGURUSAN</span>
+        <a class="sidebar-link {{ request()->routeIs('guru-accounts.*') ? 'active' : '' }}" href="{{ route('guru-accounts.index') }}">
             <span class="sidebar-icon">♙</span> Akaun Guru
         </a>
+        
+        <span class="sidebar-label">PAPARAN MATA</span>
         <a class="sidebar-link" href="{{ route('scoreboard') }}" target="_blank" rel="noopener">
             <span class="sidebar-icon">◉</span> Live Scoreboard
         </a>
