@@ -9,32 +9,48 @@ use Illuminate\Http\Request;
 
 class PesertaController extends Controller
 {
+    private function rumahSukanGuru()
+    {
+        $rumahSukanId = auth()->user()->rumah_sukan_id;
+
+        if (!$rumahSukanId) {
+            abort(403, 'Akaun guru belum ditetapkan kepada rumah sukan.');
+        }
+
+        return $rumahSukanId;
+    }
+
+    // Paparan senarai peserta
     public function index()
     {
+        $rumahSukanId = $this->rumahSukanGuru();
+
         $peserta = Peserta::with('rumahSukan')
+            ->where('rumah_sukan_id', $rumahSukanId)
             ->orderBy('nama_peserta')
             ->get();
-        $rumahSukans = Rumah_Sukan::orderBy('nama_rumah')->get();
 
-        return view('esutkv.peserta.index', compact('peserta', 'rumahSukans'));
+        return view('esutkv.guru.peserta.index', compact('peserta'));
     }
 
+    // Paparan senarai peserta
     public function senarai()
     {
-        $peserta = Peserta::with('rumahSukan')
-            ->orderBy('nama_peserta')
-            ->get();
-
-        return view('esutkv.peserta.senarai', compact('peserta'));
+        return $this->index();
     }
 
+    // Simpan peserta baharu
     public function store(Request $request)
     {
+        $rumahSukanId = $this->rumahSukanGuru();
+
         $data = $request->validate([
             'nama_peserta' => 'required|string|max:255',
-            'rumah_sukan_id' => 'required|exists:rumah_sukans,id',
             'jantina' => 'required|in:L,P',
         ]);
+
+        // Rumah sukan ditentukan melalui akaun guru
+        $data['rumah_sukan_id'] = $rumahSukanId;
 
         Peserta::create($data);
 
@@ -43,16 +59,56 @@ class PesertaController extends Controller
             ->with('success', 'Peserta berjaya didaftarkan.');
     }
 
-    public function destroy(int $id)
+    // Paparan borang kemaskini
+    public function edit(int $id)
     {
-        DB::transaction(function () use ($id) {
-            $peserta = Peserta::findOrFail($id);
-            $peserta->keputusans()->delete();
-            $peserta->delete();
-        });
+        $rumahSukanId = $this->rumahSukanGuru();
+
+        $peserta = Peserta::where('rumah_sukan_id', $rumahSukanId)
+            ->findOrFail($id);
+
+        return view('esutkv.guru.peserta.edit', compact('peserta'));
+    }
+
+    // Kemaskini maklumat peserta
+    public function update(Request $request, int $id)
+    {
+        $rumahSukanId = $this->rumahSukanGuru();
+
+        $peserta = Peserta::where('rumah_sukan_id', $rumahSukanId)
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'nama_peserta' => 'required|string|max:255',
+            'jantina' => 'required|in:L,P',
+        ]);
+
+        $peserta->update($data);
 
         return redirect()
-            ->route('peserta.senarai')
-            ->with('success', 'Peserta dan keputusan berkaitan berjaya dipadamkan.');
+            ->route('peserta.index')
+            ->with('success', 'Maklumat peserta berjaya dikemaskini.');
+    }
+
+    // Padam peserta
+    public function destroy(int $id)
+    {
+        $rumahSukanId = $this->rumahSukanGuru();
+
+        $peserta = Peserta::where('rumah_sukan_id', $rumahSukanId)
+            ->findOrFail($id);
+
+        // Elakkan keputusan pertandingan terpadam
+        if ($peserta->keputusans()->exists()) {
+            return redirect()
+                ->route('peserta.index')
+                ->with('error', 'Peserta tidak boleh dipadam kerana mempunyai rekod keputusan pertandingan.');
+        }
+
+        $peserta->delete();
+
+        return redirect()
+            ->route('peserta.index')
+            ->with('success', 'Peserta berjaya dipadamkan.');
     }
 }
